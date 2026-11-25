@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 s25c1021fxonagawa
+# SPDX-License-Identifier: BSD-3-Clause
+
+import argparse
+import math
+import sys
+
+CMD = "quat2euler"
+
+
+def quat_to_euler(x, y, z, w):
+    """クォータニオン(x, y, z, w)を, roll, pitch, yaw[rad]に変換する.
+
+    回転順はZ-Y-X(yaw -> pitch -> roll, ROSのRPYと同じ)である.
+    """
+    values = (x, y, z, w)
+    if not all(math.isfinite(v) for v in values):
+        raise ValueError("nan or inf is not allowed")
+    norm = math.sqrt(x * x + y * y + z * z + w * w)
+    if norm == 0.0:
+        raise ValueError("zero quaternion")
+    x, y, z, w = (v / norm for v in values)
+
+    sinp = 2.0 * (w * y - z * x)
+    if abs(sinp) >= 1.0 - 1e-12:
+        # ジンバルロック: rollとyawを区別できないため, rollを0にする
+        pitch = math.copysign(math.pi / 2.0, sinp)
+        roll = 0.0
+        yaw = -2.0 * math.copysign(1.0, sinp) * math.atan2(x, w)
+        yaw = math.atan2(math.sin(yaw), math.cos(yaw))
+    else:
+        pitch = math.asin(sinp)
+        roll = math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y))
+        yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+    return roll, pitch, yaw
+
+
+def parse_line(line):
+    fields = line.split()
+    if len(fields) != 4:
+        raise ValueError(f"need 4 numbers (x y z w), got {len(fields)}")
+    try:
+        return [float(f) for f in fields]
+    except ValueError:
+        raise ValueError("not a number") from None
+
+
+def fmt(v, digits):
+    # -0.000000 のような表記を避ける
+    return f"{round(v, digits) + 0.0:.{digits}f}"
+
+
+def process(line, degrees, digits):
+    """入力1行を処理して, 出力する文字列を返す."""
+    angles = quat_to_euler(*parse_line(line))
+    if degrees:
+        angles = [math.degrees(a) for a in angles]
+    return " ".join(fmt(a, digits) for a in angles)
+
+
+def error(msg):
+    """人に向けたメッセージは標準エラー出力に出す."""
+    print(f"{CMD}: {msg}", file=sys.stderr)
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        prog=CMD,
+        description="convert quaternions (x y z w) from stdin "
+                    "to Euler angles (roll pitch yaw)")
+    p.add_argument("-d", "--degrees", action="store_true",
+                   help="output in degrees (default: radians)")
+    p.add_argument("-p", "--precision", type=int, default=6,
+                   help="number of decimal places (default: 6)")
+    args = p.parse_args()
+    if not 0 <= args.precision <= 15:
+        p.error("precision must be between 0 and 15")
+    return args
+
+
+def main():
+    args = parse_args()
+    status = 0
+    for n, line in enumerate(sys.stdin, start=1):
+        try:
+            print(process(line, args.degrees, args.precision))
+        except ValueError as e:
+            error(f"line {n}: {e}")
+            status = 1
+    return status
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except BrokenPipeError:
+        sys.stderr.close()
+        sys.exit(1)
