@@ -68,6 +68,28 @@ out=$(echo "1 0 0 0" | "$cmd" --wxyz -p 1)
 out=$(echo "0.7071068,0.7071068,0,0" | "$cmd" -w -d -p 1)
 [ "${out}" = "90.0 0.0 0.0" ] || ng "$LINENO"
 
+# 改行コードがCRLF
+out=$(printf '1 0 0 0\r\n' | "$cmd" -d -p 1)
+[ "${out}" = "180.0 0.0 0.0" ] || ng "$LINENO"
+
+# 最後の行に改行がない
+out=$(printf '1 0 0 0' | "$cmd" -d -p 1)
+[ "${out}" = "180.0 0.0 0.0" ] || ng "$LINENO"
+
+# 非常に大きな値(途中計算でオーバーフローしない)
+out=$(echo "1e200 0 0 1e200" | "$cmd" -d -p 1)
+[ "$?" = 0 ] || ng "$LINENO"
+[ "${out}" = "90.0 0.0 0.0" ] || ng "$LINENO"
+
+# 非常に小さな値(途中計算でアンダーフローしない)
+out=$(echo "1e-320 0 0 0" | "$cmd" -d -p 1)
+[ "$?" = 0 ] || ng "$LINENO"
+[ "${out}" = "180.0 0.0 0.0" ] || ng "$LINENO"
+
+# 符号を反転したクォータニオンは同じ回転になる
+out=$(echo "0 0 -0.7071068 -0.7071068" | "$cmd" -d -p 1)
+[ "${out}" = "0.0 0.0 90.0" ] || ng "$LINENO"
+
 # 空の入力
 out=$(printf '' | "$cmd")
 [ "$?" = 0 ] || ng "$LINENO"
@@ -86,6 +108,11 @@ out=$(printf 'x\n0 0 0 1\n' | "$cmd" -p 1 2>/dev/null)
 [ "$?" = 1 ] || ng "$LINENO"
 [ "${out}" = "0.0 0.0 0.0" ] || ng "$LINENO"
 
+# 不正なバイト列を含む行はエラーにして, 次の行の処理を続ける
+out=$(printf '\xff\xfe 0 0 1\n0 0 0 1\n' | "$cmd" -p 1 2>/dev/null)
+[ "$?" = 1 ] || ng "$LINENO"
+[ "${out}" = "0.0 0.0 0.0" ] || ng "$LINENO"
+
 # エラーメッセージは標準エラー出力に出す
 err=$(echo "x" | "$cmd" 2>&1 >/dev/null)
 [ -n "${err}" ] || ng "$LINENO"
@@ -94,9 +121,18 @@ err=$(echo "x" | "$cmd" 2>&1 >/dev/null)
 err=$(echo "0 0 0 1" | "$cmd" 2>&1 >/dev/null)
 [ "${err}" = "" ] || ng "$LINENO"
 
-### 不正なオプション(終了ステータス2) ###
-"$cmd" -p 99 < /dev/null > /dev/null 2>&1
-[ "$?" = 2 ] || ng "$LINENO"
+### 不正なオプション(終了ステータス2, 標準出力は空) ###
+for opt in "-p 99" "-p -1" "-p abc" "-x" "foo"; do
+    # shellcheck disable=SC2086
+    out=$("$cmd" $opt < /dev/null 2>/dev/null)
+    [ "$?" = 2 ] || ng "$LINENO"
+    [ "${out}" = "" ] || ng "$LINENO"
+done
+
+### ヘルプ ###
+out=$("$cmd" -h)
+[ "$?" = 0 ] || ng "$LINENO"
+echo "${out}" | grep -q "usage: quat2euler" || ng "$LINENO"
 
 [ "$res" = 0 ] && echo OK
 exit $res
