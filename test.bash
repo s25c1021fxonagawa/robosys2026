@@ -12,7 +12,7 @@ res=0
 dir=$(cd "$(dirname "$0")" && pwd)
 cmd="$dir/quat2euler"
 
-### 正常な入力 ###
+### 正常###
 # 回転なし
 out=$(echo "0 0 0 1" | "$cmd")
 [ "$?" = 0 ] || ng "$LINENO"
