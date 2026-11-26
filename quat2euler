@@ -36,14 +36,25 @@ def quat_to_euler(x, y, z, w):
     return roll, pitch, yaw
 
 
-def parse_line(line):
-    fields = line.split()
+def parse_line(line, wxyz=False):
+    """入力1行を, (x, y, z, w)の順の数値のリストにする.
+
+    区切りは空白またはカンマ. wxyzが真のときは, 入力をw x y zの順として扱う.
+    """
+    line = line.strip()
+    if "," in line:
+        fields = [f.strip() for f in line.split(",")]
+    else:
+        fields = line.split()
     if len(fields) != 4:
-        raise ValueError(f"need 4 numbers (x y z w), got {len(fields)}")
+        raise ValueError(f"need 4 numbers, got {len(fields)}")
     try:
-        return [float(f) for f in fields]
+        values = [float(f) for f in fields]
     except ValueError:
         raise ValueError("not a number") from None
+    if wxyz:
+        values = values[1:] + values[:1]
+    return values
 
 
 def fmt(v, digits):
@@ -51,9 +62,9 @@ def fmt(v, digits):
     return f"{round(v, digits) + 0.0:.{digits}f}"
 
 
-def process(line, degrees, digits):
+def process(line, degrees, digits, wxyz=False):
     """入力1行を処理して, 出力する文字列を返す."""
-    angles = quat_to_euler(*parse_line(line))
+    angles = quat_to_euler(*parse_line(line, wxyz))
     if degrees:
         angles = [math.degrees(a) for a in angles]
     return " ".join(fmt(a, digits) for a in angles)
@@ -73,6 +84,8 @@ def parse_args():
                    help="output in degrees (default: radians)")
     p.add_argument("-p", "--precision", type=int, default=6,
                    help="number of decimal places (default: 6)")
+    p.add_argument("-w", "--wxyz", action="store_true",
+                   help="read input in w x y z order (default: x y z w)")
     args = p.parse_args()
     if not 0 <= args.precision <= 15:
         p.error("precision must be between 0 and 15")
@@ -84,7 +97,7 @@ def main():
     status = 0
     for n, line in enumerate(sys.stdin, start=1):
         try:
-            print(process(line, args.degrees, args.precision))
+            print(process(line, args.degrees, args.precision, args.wxyz))
         except ValueError as e:
             error(f"line {n}: {e}")
             status = 1

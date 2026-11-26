@@ -42,13 +42,40 @@ out=$(echo "0 0 0 2" | "$cmd" -p 1)
 out=$(printf '0 0 0 1\n1 0 0 0\n' | "$cmd" -d -p 0)
 [ "${out}" = "$(printf '0 0 0\n180 0 0')" ] || ng "$LINENO"
 
+# カンマ区切り(CSV)
+out=$(echo "0,0,0.7071068,0.7071068" | "$cmd" -d -p 1)
+[ "$?" = 0 ] || ng "$LINENO"
+[ "${out}" = "0.0 0.0 90.0" ] || ng "$LINENO"
+
+# カンマの前後に空白があるCSV
+out=$(echo "0, 0, 0.7071068, 0.7071068" | "$cmd" -d -p 1)
+[ "${out}" = "0.0 0.0 90.0" ] || ng "$LINENO"
+
+# タブ区切り
+out=$(printf '0\t0\t0.7071068\t0.7071068\n' | "$cmd" -d -p 1)
+[ "${out}" = "0.0 0.0 90.0" ] || ng "$LINENO"
+
+# -w: w x y zの順で入力(z軸まわりに90度)
+out=$(echo "0.7071068 0 0 0.7071068" | "$cmd" -w -d -p 1)
+[ "$?" = 0 ] || ng "$LINENO"
+[ "${out}" = "0.0 0.0 90.0" ] || ng "$LINENO"
+
+# -w: 回転なし
+out=$(echo "1 0 0 0" | "$cmd" --wxyz -p 1)
+[ "${out}" = "0.0 0.0 0.0" ] || ng "$LINENO"
+
+# -wとCSVの組み合わせ
+out=$(echo "0.7071068,0.7071068,0,0" | "$cmd" -w -d -p 1)
+[ "${out}" = "90.0 0.0 0.0" ] || ng "$LINENO"
+
 # 空の入力
 out=$(printf '' | "$cmd")
 [ "$?" = 0 ] || ng "$LINENO"
 [ "${out}" = "" ] || ng "$LINENO"
 
 ### 異常な入力(終了ステータス1, 標準出力は空) ###
-for input in "1 2 3" "a b c d" "0 0 0 0" "nan 0 0 1" "inf 0 0 1" ""; do
+for input in "1 2 3" "a b c d" "0 0 0 0" "nan 0 0 1" "inf 0 0 1" "" \
+    "1,2,3" "1,,2,3" "1 2 3 4 5" "0 0, 0 1"; do
     out=$(echo "$input" | "$cmd" 2>/dev/null)
     [ "$?" = 1 ] || ng "$LINENO"
     [ "${out}" = "" ] || ng "$LINENO"
