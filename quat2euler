@@ -115,3 +115,10 @@ if __name__ == "__main__":
     except BrokenPipeError:
         sys.stderr.close()
         sys.exit(1)
+
+#AI使用について
+ """以下は今回の作成でAIを使用した点である
+ ・READMEの添削
+ ・スクリプトの添削
+ ・最終チェック
+ """
